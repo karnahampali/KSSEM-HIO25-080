@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AI Resume Analyzer</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; background-color: #111827; color: #f3f4f6; }
+    .animate-fade-in { animation: fadeIn 0.35s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .form-input, .form-textarea {
+      width: 100%; background-color: #374151; border: 1px solid #4b5563; color: #fff;
+      border-radius: 0.5rem; padding: 0.75rem 1rem 0.75rem 3rem;
+    }
+    .form-input:focus, .form-textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
+
+    .file-input::file-selector-button {
+      background-color: #3b82f6; color: white; border: 0; border-radius: 0.5rem;
+      padding: 0.5rem 1rem; margin-right: 1rem; font-weight: 600; cursor: pointer;
+    }
+    .file-input::file-selector-button:hover { background-color: #2563eb; }
+
+    .nav-link.active { background-color: #2563eb; color: white; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
+    .nav-link:not(.active):hover { background-color: #374151; color: white; }
+
+    .score-card { background-color: #1f2937; border-radius: 0.75rem; box-shadow: 0 8px 12px rgba(0, 0, 0, 0.25); padding: 1.25rem; display: flex; flex-direction: column; align-items: center; }
+    .score-circle {
+      width: 110px; height: 110px; border-radius: 50%; display: grid; place-items: center; font-size: 1.75rem; font-weight: 700;
+      background: radial-gradient(closest-side, #1f2937 80%, transparent 81% 100%),
+                  conic-gradient(var(--color) calc(var(--score) * 1%), #4b5563 0%);
+      transition: all 0.4s ease-out;
+    }
+
+    /* Auth overlays base */
+    html.auth-locked body > *:not(.auth-overlay):not(header) { 
+      filter: blur(2px); 
+      pointer-events: none; 
+      user-select: none; 
+    }
+    
+    .auth-overlay { position: fixed; inset: 0; display: grid; place-items: center;
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(91,124,255,.25), transparent 60%),
+        radial-gradient(800px 400px at -10% 100%, rgba(20,194,171,.2), transparent 60%),
+        rgba(6,10,24,.88);
+      backdrop-filter: blur(4px); z-index: 4000; /* Lower z-index than header */
+    }
+    
+    .auth-card { width: min(92vw, 420px); background: #111834ee; border: 1px solid #2a3762; border-radius: 16px;
+      padding: 22px 20px 18px; box-shadow: 0 24px 68px rgba(0,0,0,.45); color: #e9edf5; }
+    .auth-input { width:100%;padding:12px 14px;border-radius:10px;border:1px solid #314373;background:#0d1430;color:#e9edf5 }
+    .auth-button { padding:12px 16px;border-radius:10px;border:0;background:#5b7cff;color:#fff;font-weight:600;cursor:pointer }
+    .auth-button-secondary { background:#253159; }
+    .auth-msg { display:none;font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid #33426f;background:#132048; }
+
+    .dot { display:inline-block;width:8px;height:8px;border-radius:999px; margin-right:6px; }
+    .dot-green{ background:#22c55e; } .dot-yellow{ background:#eab308; } .dot-red{ background:#ef4444; }
+
+    .tt { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+    .tt::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 140%;
+      left: 50%;
+      transform: translateX(-50%) scale(0.95);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s ease, transform .15s ease;
+      background: #0b1533;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      font-size: 10px;
+      padding: 3px 6px;
+      white-space: nowrap;
+      border-radius: 6px;
+      z-index: 50;
+    }
+    .tt:hover::after { opacity: 1; transform: translateX(-50%) scale(1); }
+
+    /* Modal base */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
+    .modal { width: min(92vw, 560px); background: #0f172a; border: 1px solid #334155; border-radius: 14px; box-shadow: 0 24px 68px rgba(0,0,0,.45); }
+    .modal-header { padding: 14px 16px; border-bottom: 1px solid #233046; display:flex; align-items:center; justify-content: space-between; }
+    .modal-title { font-weight: 700; }
+    .modal-body { padding: 14px 16px; }
+    .modal-footer { padding: 12px 16px; border-top: 1px solid #233046; display:flex; gap:10px; justify-content: flex-end; }
+    
+    /* Ensure filter select respects dark mode */
+    #score-filter { color-scheme: dark; }
+
+    @media (max-width: 640px) {
+      .score-circle { width: 96px; height: 96px; font-size: 1.5rem; }
+      .candidate-row { padding: 10px 12px; }
+      .candidate-actions .tt { padding: 6px; }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen">
+  <header class="bg-gray-800 shadow-xl sticky top-0 z-[5000]">
+    <nav class="w-full px-[10px] py-3 flex items-center justify-between">
+      <div class="min-w-0 flex items-center">
+        <i data-lucide="bar-chart-2" class="w-7 h-7 sm:w-8 sm:h-8 text-blue-400"></i>
+        <h1 class="ml-2 text-xl sm:text-2xl font-bold text-white truncate">AI Resume Analyzer</h1>
+      </div>
+      <div class="flex items-center gap-1 sm:gap-2">
+        <a href="#/user" id="nav-user" class="nav-link flex items-center px-3 py-2 rounded-md font-medium">
+          <i data-lucide="upload-cloud" class="w-5 h-5 mr-2"></i> Candidate
+        </a>
+        <a href="#/admin" id="nav-admin" class="nav-link flex items-center px-3 py-2 rounded-md font-medium">
+          <i data-lucide="user-check" class="w-5 h-5 mr-2"></i> Recruiter
+        </a>
+        <button id="logout-btn" class="hidden px-3 py-2 rounded-md font-medium bg-red-600 hover:bg-red-700 text-white flex items-center">
+          <i data-lucide="log-out" class="w-5 h-5 mr-1"></i> Logout
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main id="user-portal" class="w-full max-w-[1000px] mx-auto px-[10px] sm:px-4 md:px-6 p-4 sm:p-6 mt-2 sm:mt-6" style="display:none;">
+    
+    <div id="user-form-container" class="bg-gray-800 rounded-2xl shadow-2xl overflow-hidden p-5 sm:p-8" style="display: none;">
+      <div class="flex flex-col items-center text-center mb-6">
+        <i data-lucide="upload-cloud" class="w-14 h-14 sm:w-16 sm:h-16 text-blue-400"></i>
+        <h2 class="mt-3 text-2xl sm:text-3xl font-extrabold text-white">Your Profile</h2>
+        <p class="mt-2 text-base sm:text-lg text-gray-300">Update your profile to let our AI find the best opportunities for you.</p>
+        <p id="welcome-user" class="mt-1 text-sm text-blue-300"></p>
+      </div>
+
+      <form id="user-form" class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+          <div class="relative">
+            <i data-lucide="user-square" class="w-5 h-5 absolute left-4 top-3 text-gray-400"></i>
+            <input id="candidate-name" name="candidateName" placeholder="Jane Doe" required class="form-input" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">LinkedIn Profile URL</label>
+          <div class="relative">
+            <i data-lucide="linkedin" class="w-5 h-5 absolute left-4 top-3 text-gray-400"></i>
+            <input id="linkedin-url" name="linkedinUrl" placeholder="https://linkedin.com/in/janedoe" class="form-input" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Upload Resume (.pdf, .docx, .txt)</label>
+          <input id="resume-file" name="resume" type="file" accept=".pdf,.docx,.txt" required class="file-input w-full text-gray-300" />
+          <div id="resume-file-list" class="mt-2 text-sm text-gray-300"></div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Upload Certificates (PDF, PNG, JPG)</label>
+          <input id="certificates-files" name="certificates" type="file" multiple accept=".pdf,.png,.jpg,.jpeg" class="file-input w-full text-gray-300" />
+          <div id="certificate-file-list" class="mt-4 text-sm text-gray-300"></div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Other Skills</label>
+          <textarea id="other-skills" name="otherSkillsText" rows="4" placeholder="List other skills..." class="form-textarea"></textarea>
+        </div>
+
+        <button id="submit-btn" type="submit"
+          class="w-full flex justify-center items-center px-6 py-4 rounded-lg font-medium text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:scale-[1.02] active:scale-100 transition-all">
+          <span id="submit-btn-text">Update Profile</span>
+          <i data-lucide="loader-2" id="submit-loader" class="w-6 h-6 animate-spin hidden ml-2"></i>
+        </button>
+        <div id="status-message"></div>
+      </form>
+
+      <div id="candidate-meeting" class="mt-8 hidden">
+        <div class="p-4 rounded-xl bg-gray-700 border border-gray-600">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="video" class="w-5 h-5 text-red-300"></i>
+              <h3 class="font-semibold">Upcoming Interview</h3>
+            </div>
+            <a id="candidate-ics" class="text-sm text-blue-300 underline hidden" target="_blank" rel="noopener">Add to calendar</a>
+          </div>
+          <div class="mt-2 text-gray-200">
+            <div><span class="text-gray-400">Title:</span> <span id="candidate-meeting-title"></span></div>
+            <div><span class="text-gray-400">When:</span> <span id="candidate-meeting-when"></span></div>
+            <div class="mt-2">
+              <a id="candidate-join" class="inline-flex items-center gap-1 px-3 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white" target="_blank" rel="noopener">
+                <i data-lucide="camera" class="w-4 h-4"></i> Join Video Call
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> </main>
+
+  <div id="admin-portal" class="w-full px-[10px] py-4 md:py-5 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5" style="display:none">
+    <aside class="md:col-span-1 bg-gray-800 p-4 sm:p-5 border border-gray-700 rounded-xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg sm:text-xl font-semibold text-white">Candidates</h3>
+        <div class="flex items-center gap-2">
+          <select id="score-filter" class="form-input !w-auto !py-2 !px-3 !pl-8 text-sm !bg-gray-700">
+            <option value="0">Show All</option>
+            <option value="95">Score 95+</option>
+            <option value="90">Score 90+</option>
+            <option value="80">Score 80+</option>
+            <option value="70">Score 70+</option>
+          </select>
+          <button id="analyze-all-btn"
+            class="px-3 py-2 rounded-lg font-medium text-white bg-blue-700 hover:bg-blue-800 transition-all text-sm">
+            Rank All
+          </button>
+          <button id="reset-portal-btn"
+            class="px-3 py-2 rounded-lg font-medium text-white bg-red-700 hover:bg-red-800 transition-all text-sm">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="users" class="w-4 h-4 text-green-400"></i>
+            <h4 class="font-semibold">Active</h4>
+          </div>
+          <span id="active-count" class="text-xs text-gray-400">(0)</span>
+        </div>
+        <div id="candidate-list-active" class="space-y-2 text-gray-300">Loading...</div>
+      </div>
+
+      <hr class="border-gray-700 my-4"/>
+
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="shield-alert" class="w-4 h-4 text-purple-300"></i>
+            <h4 class="font-semibold">Quarantined</h4>
+          </div>
+          <span id="quarantine-count" class="text-xs text-gray-400">(0)</span>
+        </div>
+        <div id="candidate-list-quarantine" class="space-y-2 text-gray-400"></div>
+      </div>
+    </aside>
+
+    <main class="md:col-span-2">
+      <div class="bg-gray-800 rounded-xl p-4 sm:p-6 md:p-6 mb-4 md:mb-6">
+        <h2 class="text-xl sm:text-2xl font-bold mb-2">Job Description</h2>
+        <textarea id="job-description" class="w-full h-36 p-4 bg-gray-700 rounded-lg text-gray-200" placeholder="Paste JD here..."></textarea>
+      </div>
+
+      <div id="analysis-container">
+        <div id="analysis-status" class="px-1"></div>
+        <div id="analysis-placeholder" class="text-gray-400 text-center pt-10">Select a candidate to see analysis.</div>
+        <div id="analysis-loading" class="hidden text-center text-gray-300 pt-10">
+          <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-blue-400"></i>
+          <p class="mt-2">Analyzing...</p>
+        </div>
+        <div id="analysis-results" class="hidden animate-fade-in"></div>
+
+        <div id="recruiter-meeting-card" class="hidden mt-6">
+          <div class="p-4 rounded-xl bg-gray-800 border border-gray-700">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="video" class="w-5 h-5 text-red-300"></i>
+                <h3 class="font-semibold">Scheduled Meeting</h3>
+              </div>
+              <div class="flex items-center gap-2">
+                <a id="recruiter-ics" class="text-sm text-blue-300 underline hidden" target="_blank" rel="noopener">ICS</a>
+                <button id="btn-cancel-meeting" class="px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 border border-gray-600 text-sm">
+                  Cancel
+                </button>
+              </div>
+            </div>
+            <div class="mt-2 text-gray-200">
+              <div><span class="text-gray-400">Title:</span> <span id="recruiter-meeting-title"></span></div>
+              <div><span class="text-gray-400">When:</span> <span id="recruiter-meeting-when"></span></div>
+              <div class="mt-2">
+                <a id="recruiter-join" class="inline-flex items-center gap-1 px-3 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white" target="_blank" rel="noopener">
+                  <i data-lucide="camera" class="w-4 h-4"></i> Join Video Call
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="modal-title">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="flex items-center gap-2">
+          <i data-lucide="shield-x" class="w-5 h-5 text-purple-300"></i>
+          <h3 id="modal-title" class="modal-title">Quarantine Candidate</h3>
+        </div>
+        <button id="modal-close" class="p-2 rounded-md hover:bg-slate-800" aria-label="Close dialog">
+          <i data-lucide="x" class="w-5 h-5 text-gray-300"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="block text-sm text-gray-300 mb-2" for="modal-reason">Reason (optional)</label>
+        <textarea id="modal-reason" class="w-full min-h-[100px] p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" placeholder="e.g., Duplicate profile, suspected fraud, requested removal, etc."></textarea>
+        <p class="text-xs text-gray-400 mt-2">Candidate will be moved to the Quarantined list and cannot be analyzed until restored.</p>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-cancel" class="px-3 py-2 rounded-md border border-slate-600 hover:bg-slate-800">Cancel</button>
+        <button id="modal-confirm" class="px-3 py-2 rounded-md bg-purple-700 hover:bg-purple-600 text-white">Quarantine</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="reset-overlay" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="reset-title">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="flex items-center gap-2">
+          <i data-lucide="alert-triangle" class="w-5 h-5 text-red-300"></i>
+          <h3 id="reset-title" class="modal-title">Reset Portal</h3>
+        </div>
+        <button id="reset-close" class="p-2 rounded-md hover:bg-slate-800" aria-label="Close dialog">
+          <i data-lucide="x" class="w-5 h-5 text-gray-300"></i>
+        </button>
+      </div>
+
+      <div class="modal-body space-y-3">
+        <div class="p-3 rounded-md border border-red-700/60 bg-red-900/20 text-red-200 text-sm">
+          <strong>Irreversible:</strong> This will delete <em>all</em> candidates, uploads (resumes & certificates),
+          meetings & invites, and AI analysis cache.
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Admin Password</label>
+          <input id="reset-password" type="password"
+            class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100"
+            placeholder="Enter admin password" />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Type <span class="font-semibold text-gray-100">RESET</span> to confirm</label>
+          <input id="reset-confirm" type="text"
+            class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100"
+            placeholder="RESET" />
+        </div>
+
+        <p class="text-xs text-gray-400">This action cannot be undone.</p>
+      </div>
+
+      <div class="modal-footer">
+        <button id="reset-cancel" class="px-3 py-2 rounded-md border border-slate-600 hover:bg-slate-800">Cancel</button>
+        <button id="reset-confirm-btn" class="px-3 py-2 rounded-md bg-red-700 hover:bg-red-600 text-white">
+          Delete Everything
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="schedule-overlay" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="schedule-title">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="flex items-center gap-2">
+          <i data-lucide="calendar-plus" class="w-5 h-5 text-red-300"></i>
+          <h3 id="schedule-title" class="modal-title">Schedule Meeting</h3>
+        </div>
+        <button id="schedule-close" class="p-2 rounded-md hover:bg-slate-800" aria-label="Close dialog">
+          <i data-lucide="x" class="w-5 h-5 text-gray-300"></i>
+        </button>
+      </div>
+
+      <div class="modal-body grid grid-cols-1 gap-3">
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Title</label>
+          <input id="sch-title" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" placeholder="Interview" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Date</label>
+          <input id="sch-date" type="date" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Time</label>
+          <input id="sch-time" type="time" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Duration (minutes)</label>
+          <input id="sch-duration" type="number" min="15" step="15" value="30" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Description (optional)</label>
+          <textarea id="sch-desc" rows="3" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" placeholder="Anything they should prepare..."></textarea>
+        </div>
+
+        <div class="border-t border-slate-700 pt-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="mail" class="w-4 h-4 text-blue-300"></i>
+            <h4 class="text-sm font-semibold">Email Invite</h4>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div>
+              <label class="block text-sm text-gray-300 mb-1">Candidate Email</label>
+              <input id="sch-cand-email" type="email" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" placeholder="candidate@example.com" />
+            </div>
+            <div>
+              <label class="block text-sm text-gray-300 mb-1">Organizer Email</label>
+              <input id="sch-org-email" type="email" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" placeholder="you@company.com" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div>
+              <label class="block text-sm text-gray-300 mb-1">Organizer Name</label>
+              <input id="sch-org-name" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-md text-gray-100" placeholder="Recruiter" />
+            </div>
+            <label class="flex items-center gap-2 mt-2 sm:mt-0">
+              <input id="sch-send-email" type="checkbox" class="w-4 h-4">
+              <span class="text-sm text-gray-200">Send email invite with .ics</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="schedule-cancel" class="px-3 py-2 rounded-md border border-slate-600 hover:bg-slate-800">Close</button>
+        <button id="schedule-confirm" class="px-3 py-2 rounded-md bg-red-700 hover:bg-red-600 text-white">
+          Create Meeting
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rank-all-overlay" class="modal-overlay" style="display: none; z-index: 3000;">
+    <div class="p-6 bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm">
+      <div class="flex items-center gap-4">
+        <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-blue-400"></i>
+        <div>
+          <h3 class="text-lg font-semibold text-white">Ranking Candidates...</h3>
+          <p id="rank-all-status" class="text-gray-300">Initializing...</p>
+        </div>
+      </div>
+      <div class="w-full bg-gray-700 rounded-full h-2.5 mt-4">
+        <div id="rank-all-progress" class="bg-blue-600 h-2.5 rounded-full" style="width: 100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="candidate-auth-overlay" class="auth-overlay" style="display: none;">
+    <div id="candidate-login-card" class="auth-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#5b7cff,#14c2ab)">
+          <i data-lucide="upload-cloud" class="w-5 h-5 text-white m-[7px]"></i>
+        </div>
+        <h1 id="auth-title" style="margin:0;font-size:18px">Candidate Login</h1>
+      </div>
+      <p style="margin:4px 0 10px;opacity:.8">Sign in to update your profile or check status.</p>
+      <form id="candidate-login-form" novalidate>
+        <label style="display:block;margin-bottom:6px">Email</label>
+        <input id="candidate-login-email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" class="auth-input">
+        <div style="height:12px"></div>
+        <label style="display:block;margin-bottom:6px">Password</label>
+        <input id="candidate-login-password" type="password" autocomplete="current-password" class="auth-input">
+        <div id="candidate-login-actions" style="display:flex;gap:10px;align-items:center;margin-top:14px">
+          <button id="candidate-login-btn" type="submit" class="auth-button">Sign in</button>
+          <span id="candidate-login-msg" role="status" aria-live="polite" class="auth-msg"></span>
+        </div>
+        <div class="mt-4 text-center text-sm">
+          <span class="text-gray-400">Don't have an account?</span>
+          <button type="button" id="toggle-to-signup" class="ml-1 text-blue-400 hover:underline">Sign up</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="candidate-signup-card" class="auth-card" style="display: none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#5b7cff,#14c2ab)">
+          <i data-lucide="user-plus" class="w-5 h-5 text-white m-[7px]"></i>
+        </div>
+        <h1 style="margin:0;font-size:18px">Create Account</h1>
+      </div>
+      <p style="margin:4px 0 10px;opacity:.8">Create an account to submit your profile.</p>
+      <form id="candidate-signup-form" novalidate>
+        <label style="display:block;margin-bottom:6px">Full Name</label>
+        <input id="candidate-signup-name" type="text" autocomplete="name" class="auth-input">
+        <div style="height:12px"></div>
+        <label style="display:block;margin-bottom:6px">Email</label>
+        <input id="candidate-signup-email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" class="auth-input">
+        <div style="height:12px"></div>
+        <label style="display:block;margin-bottom:6px">Password</label>
+        <input id="candidate-signup-password" type="password" autocomplete="new-password" class="auth-input">
+        <div id="candidate-signup-actions" style="display:flex;gap:10px;align-items:center;margin-top:14px">
+          <button id="candidate-signup-btn" type="submit" class="auth-button">Create account</button>
+          <span id="candidate-signup-msg" role="status" aria-live="polite" class="auth-msg"></span>
+        </div>
+        <div class="mt-4 text-center text-sm">
+          <span class="text-gray-400">Already have an account?</span>
+          <button type="button" id="toggle-to-login" class="ml-1 text-blue-400 hover:underline">Log in</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="admin-auth-overlay" class="auth-overlay" style="display: none;">
+    <div id="admin-auth-card" class="auth-card" role="dialog" aria-modal="true" aria-labelledby="admin-auth-title">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#5b7cff,#14c2ab)">
+          <i data-lucide="user-check" class="w-5 h-5 text-white m-[7px]"></i>
+        </div>
+        <h1 id="admin-auth-title" style="margin:0;font-size:18px">Recruiter Sign In</h1>
+      </div>
+      <p style="margin:4px 0 10px;opacity:.8">Only authorized recruiters may access this portal.</p>
+      <form id="admin-auth-form" novalidate>
+        <label style="display:block;margin-bottom:6px">Username</label>
+        <input id="admin-auth-username" autocomplete="username" autocapitalize="none" spellcheck="false" class="auth-input">
+        <div style="height:12px"></div>
+        <label style="display:block;margin-bottom:6px">Password</label>
+        <input id="admin-auth-password" type="password" autocomplete="current-password" class="auth-input">
+        <div id="admin-auth-actions" style="display:flex;gap:10px;align-items:center;margin-top:14px">
+          <button id="admin-auth-login" type="submit" class="auth-button">Sign in</button>
+          <button id="admin-auth-clear" type="button" class="auth-button auth-button-secondary">Clear</button>
+          <span id="admin-auth-msg" role="status" aria-live="polite" class="auth-msg"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <script>
+    const API_URL = ''; // same-origin
+
+    // --- safe JSON fetch ---
+    async function fetchJSON(url, options = {}) {
+      const res = await fetch(url, options);
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (res.status === 204) return { ok: true, status: res.status, data: null };
+      if (!ct.includes('application/json')) {
+        const text = await res.text().catch(() => '');
+        const snippet = (text || '').trim().slice(0, 200);
+        const hint = snippet.startsWith('<') ? ' (HTML received)' : '';
+        const err = new Error(`Expected JSON but got ${res.status} ${ct}${hint}. ${snippet ? 'Snippet: ' + snippet : ''}`);
+        err.status = res.status;
+        err.raw = text;
+        throw err;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.message || `HTTP ${res.status}`;
+        const err = new Error(msg);
+        err.status = res.status;
+        err.payload = data;
+        throw err;
+      }
+      return { ok: true, status: res.status, data };
+    }
+
+    // --- Robust Element Selector ---
+    function getEl(id) {
+      const el = document.getElementById(id);
+      if (!el) throw new Error(`[DOM Error] HTML element with id '${id}' not found.`);
+      return el;
+    }
+
+    // --- Element cache ---
+    const userPortal = getEl('user-portal');
+    const userFormContainer = getEl('user-form-container'); 
+    const adminPortal = getEl('admin-portal');
+    const navUser = getEl('nav-user');
+    const navAdmin = getEl('nav-admin');
+    const logoutBtn = getEl('logout-btn');
+
+    // candidate elements
+    const userForm = getEl('user-form');
+    const welcomeUser = getEl('welcome-user');
+    const candidateNameInput = getEl('candidate-name');
+    const linkedinUrlInput = getEl('linkedin-url');
+    const otherSkillsInput = getEl('other-skills');
+    const resumeFileInput = getEl('resume-file');
+    const resumeFileList = getEl('resume-file-list');
+    const statusMessage = getEl('status-message');
+    const certificateFilesInput = getEl('certificates-files');
+    const certificateFileList = getEl('certificate-file-list');
+    const submitBtn = getEl('submit-btn');
+    const submitBtnText = getEl('submit-btn-text');
+    const submitLoader = getEl('submit-loader');
+
+    const candidateMeetingWrap = getEl('candidate-meeting');
+    const candidateMeetingTitle = getEl('candidate-meeting-title');
+    const candidateMeetingWhen = getEl('candidate-meeting-when');
+    const candidateJoin = getEl('candidate-join');
+    const candidateICS = getEl('candidate-ics');
+
+    // admin elements
+    const activeList = getEl('candidate-list-active');
+    const quarantineList = getEl('candidate-list-quarantine');
+    const activeCount = getEl('active-count');
+    const quarantineCount = getEl('quarantine-count');
+    const jobDescription = getEl('job-description');
+    const analysisPlaceholder = getEl('analysis-placeholder');
+    const analysisLoading = getEl('analysis-loading');
+    const analysisResults = getEl('analysis-results');
+    const analysisStatus = getEl('analysis-status');
+    const analyzeAllBtn = getEl('analyze-all-btn');
+    const rankAllOverlay = getEl('rank-all-overlay');
+    const rankAllStatus = getEl('rank-all-status');
+    const rankAllProgress = getEl('rank-all-progress');
+    const recruiterMeetingCard = getEl('recruiter-meeting-card');
+    const recruiterMeetingTitle = getEl('recruiter-meeting-title');
+    const recruiterMeetingWhen = getEl('recruiter-meeting-when');
+    const recruiterJoin = getEl('recruiter-join');
+    const recruiterICS = getEl('recruiter-ics');
+    const btnCancelMeeting = getEl('btn-cancel-meeting');
+    const scoreFilter = getEl('score-filter'); // <-- [NEW]
+
+    // modal elements
+    const modalOverlay = getEl('modal-overlay');
+    const modalClose = getEl('modal-close');
+    const modalCancel = getEl('modal-cancel');
+    const modalConfirm = getEl('modal-confirm');
+    const modalReason = getEl('modal-reason');
+    let quarantineTargetId = null;
+    const resetBtn = getEl('reset-portal-btn');
+    const resetOverlay = getEl('reset-overlay');
+    const resetClose = getEl('reset-close');
+    const resetCancel = getEl('reset-cancel');
+    const resetConfirmBtn = getEl('reset-confirm-btn');
+    const resetPassword = getEl('reset-password');
+    const resetConfirm = getEl('reset-confirm');
+    const scheduleOverlay = getEl('schedule-overlay');
+    const scheduleClose = getEl('schedule-close');
+    const scheduleCancel = getEl('schedule-cancel');
+    const scheduleConfirm = getEl('schedule-confirm');
+    const schTitle = getEl('sch-title');
+    const schDate = getEl('sch-date');
+    const schTime = getEl('sch-time');
+    const schDuration = getEl('sch-duration');
+    const schDesc = getEl('sch-desc');
+    const schCandEmail = getEl('sch-cand-email');
+    const schOrgEmail = getEl('sch-org-email');
+    const schOrgName = getEl('sch-org-name');
+    const schSendEmail = getEl('sch-send-email');
+    
+    // Auth Overlays
+    const adminAuthOverlay = getEl('admin-auth-overlay');
+    const candidateAuthOverlay = getEl('candidate-auth-overlay');
+    const candidateLoginCard = getEl('candidate-login-card');
+    const candidateSignupCard = getEl('candidate-signup-card');
+
+    // --- State ---
+    let selectedCandidate = null;
+    let cachedCandidates = [];
+    let rankAllInFlight = false;
+    let currentCandidate = null; 
+    let currentScoreFilter = 0; // <-- [NEW]
+    let currentRankMap = new Map(); // <-- [NEW]
+
+    // ---------------- Admin Auth Gate ----------------
+    const adminAuth = {
+      authed: false,
+      async whoAmI() {
+        try {
+          const { data } = await fetchJSON(`${API_URL}/auth/admin/whoami`, { credentials: 'include' });
+          this.authed = !!data.authenticated;
+          setLogoutVisible(this.authed || candidateAuth.authed);
+          return data;
+        } catch {
+          this.authed = false;
+          setLogoutVisible(candidateAuth.authed);
+          return { authenticated:false };
+        }
+      },
+      async login(username, password) {
+        const { data } = await fetchJSON(`${API_URL}/auth/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        this.authed = true;
+        setLogoutVisible(true);
+        return data;
+      },
+      async logout() {
+        try { await fetchJSON(`${API_URL}/auth/admin/logout`, { method:'POST', credentials:'include' }); }
+        finally { this.authed = false; setLogoutVisible(candidateAuth.authed); }
+      }
+    };
+
+    function setLogoutVisible(isVisible) { logoutBtn.classList.toggle('hidden', !isVisible); }
+
+    function showAdminOverlay() {
+      if (getEl('admin-auth-overlay').style.display === 'grid') return;
+      adminAuthOverlay.style.display = 'grid';
+      document.documentElement.classList.add('auth-locked');
+      lucide.createIcons();
+    }
+    function hideAdminOverlay() {
+      adminAuthOverlay.style.display = 'none';
+      if (getEl('candidate-auth-overlay').style.display !== 'grid') {
+          document.documentElement.classList.remove('auth-locked');
+      }
+    }
+
+    async function ensureAuthedForAdmin() {
+      if (adminAuth.authed) return true;
+      const me = await adminAuth.whoAmI();
+      if (me.authenticated) return true;
+      showAdminOverlay();
+      return false;
+    }
+    
+    (function() {
+      const form = getEl('admin-auth-form');
+      const u = getEl('admin-auth-username');
+      const p = getEl('admin-auth-password');
+      const msg = getEl('admin-auth-msg');
+      const clearBtn = getEl('admin-auth-clear');
+      function showErr(t){ msg.textContent=t; msg.style.display='inline-block'; msg.classList.add('error'); msg.style.borderColor='#7b2f36'; msg.style.background='#2a1216'; msg.style.color='#ffb3b7'; }
+      function clearMsg(){ msg.textContent=''; msg.style.display='none'; msg.classList.remove('error'); }
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault(); clearMsg();
+        if (!u.value.trim() || !p.value) return showErr('Enter username and password');
+        try { await adminAuth.login(u.value.trim(), p.value); hideAdminOverlay(); showAdminAndLoad(); }
+        catch (err) { showErr(err.message || 'Invalid credentials'); }
+      });
+      clearBtn.addEventListener('click', () => { u.value=''; p.value=''; clearMsg(); u.focus(); });
+    })();
+
+
+    // ---------------- Candidate Auth Gate ----------------
+    const candidateAuth = {
+      authed: false,
+      async whoAmI() {
+        try {
+          const { data } = await fetchJSON(`${API_URL}/auth/candidate/whoami`, { credentials: 'include' });
+          this.authed = !!data.authenticated;
+          currentCandidate = data.candidate || null;
+          setLogoutVisible(this.authed || adminAuth.authed);
+          return data;
+        } catch {
+          this.authed = false;
+          currentCandidate = null;
+          setLogoutVisible(adminAuth.authed);
+          return { authenticated: false };
+        }
+      },
+      async login(email, password) {
+        const { data } = await fetchJSON(`${API_URL}/auth/candidate/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        this.authed = true;
+        currentCandidate = data.candidate || null;
+        setLogoutVisible(true);
+        return data;
+      },
+      async signup(name, email, password) {
+        const { data } = await fetchJSON(`${API_URL}/auth/candidate/signup`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+        this.authed = true;
+        currentCandidate = data.candidate || null;
+        setLogoutVisible(true);
+        return data;
+      },
+      async logout() {
+        try { await fetchJSON(`${API_URL}/auth/candidate/logout`, { method:'POST', credentials:'include' }); }
+        finally { this.authed = false; currentCandidate = null; setLogoutVisible(adminAuth.authed); }
+      }
+    };
+
+    function showCandidateOverlay() {
+      candidateAuthOverlay.style.display = 'grid';
+      document.documentElement.classList.add('auth-locked');
+      lucide.createIcons();
+    }
+    function hideCandidateOverlay() {
+      candidateAuthOverlay.style.display = 'none';
+      if (getEl('admin-auth-overlay').style.display !== 'grid') {
+          document.documentElement.classList.remove('auth-locked');
+      }
+    }
+
+    (function() {
+      getEl('toggle-to-signup').addEventListener('click', () => {
+        candidateLoginCard.style.display = 'none';
+        candidateSignupCard.style.display = 'block';
+      });
+      getEl('toggle-to-login').addEventListener('click', () => {
+        candidateSignupCard.style.display = 'none';
+        candidateLoginCard.style.display = 'block';
+      });
+
+      const loginForm = getEl('candidate-login-form');
+      const loginEmail = getEl('candidate-login-email');
+      const loginPass = getEl('candidate-login-password');
+      const loginMsg = getEl('candidate-login-msg');
+      function showLoginErr(t){ loginMsg.textContent=t; loginMsg.style.display='inline-block'; loginMsg.style.borderColor='#7b2f36'; loginMsg.style.background='#2a1216'; loginMsg.style.color='#ffb3b7'; }
+      function clearLoginMsg(){ loginMsg.textContent=''; loginMsg.style.display='none'; }
+
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); clearLoginMsg();
+        if (!loginEmail.value.trim() || !loginPass.value) return showLoginErr('Enter email and password');
+        try {
+          await candidateAuth.login(loginEmail.value.trim(), loginPass.value);
+          hideCandidateOverlay();
+          await route(); // [MODIFIED] Re-run the main router
+        } catch (err) { showLoginErr(err.message || 'Invalid credentials'); }
+      });
+
+      const signupForm = getEl('candidate-signup-form');
+      const signupName = getEl('candidate-signup-name');
+      const signupEmail = getEl('candidate-signup-email');
+      const signupPass = getEl('candidate-signup-password');
+      const signupMsg = getEl('candidate-signup-msg');
+      function showSignupErr(t){ signupMsg.textContent=t; signupMsg.style.display='inline-block'; signupMsg.style.borderColor='#7b2f36'; signupMsg.style.background='#2a1216'; signupMsg.style.color='#ffb3b7'; }
+      function clearSignupMsg(){ signupMsg.textContent=''; signupMsg.style.display='none'; }
+
+      signupForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); clearSignupMsg();
+        if (!signupName.value.trim() || !signupEmail.value.trim() || !signupPass.value) return showSignupErr('Please fill out all fields');
+        try {
+          await candidateAuth.signup(signupName.value.trim(), signupEmail.value.trim(), signupPass.value);
+          hideCandidateOverlay();
+          await route(); // [MODIFIED] Re-run the main router
+        } catch (err) { showSignupErr(err.message || 'Signup failed'); }
+      });
+    })();
+
+
+    // ---------------- End Auth ----------------
+
+
+    function showAdminAndLoad() {
+      adminPortal.style.display = 'grid';
+      navUser.classList.remove('active');
+      navAdmin.classList.add('active');
+      loadCandidates();
+    }
+
+    async function showUserPortalAndLoad() {
+      if (!currentCandidate) {
+        userFormContainer.style.display = 'none';
+        return;
+      }
+      
+      userFormContainer.style.display = 'block';
+      
+      welcomeUser.textContent = `Welcome, ${escapeHtml(currentCandidate.name || currentCandidate.email)}!`;
+      candidateNameInput.value = currentCandidate.name || '';
+      linkedinUrlInput.value = currentCandidate.linkedinUrl || '';
+      otherSkillsInput.value = currentCandidate.otherSkillsText || '';
+      
+      if (currentCandidate.resumeFile?.filename) {
+        resumeFileList.innerHTML = `<p class="text-sm text-gray-400">Current: ${escapeHtml(currentCandidate.resumeFile.filename)}<br>(Uploading a new file will replace this one)</p>`;
+      } else {
+        resumeFileList.innerHTML = '';
+      }
+      
+      if (currentCandidate.certificates?.length) {
+        certificateFileList.innerHTML = `<p class="text-sm text-gray-400">Current certificates: (${currentCandidate.certificates.length})<br>(Uploading new files will replace all existing ones)</p><ul class="list-disc ml-6 text-gray-400 text-sm">${currentCandidate.certificates.map(f => `<li>${escapeHtml(f.name)}</li>`).join('')}</ul>`;
+      } else {
+        certificateFileList.innerHTML = '';
+      }
+
+      if (currentCandidate.resumeFile?.filename) {
+          resumeFileInput.required = false;
+      } else {
+          resumeFileInput.required = true;
+      }
+      
+      await refreshCandidateMeetingCard();
+    }
+
+
+    // ---------------- Helpers ----------------
+    function clamp(n, min, max) { n = Number.isFinite(+n) ? +n : 0; return Math.min(max, Math.max(min, n)); }
+    function section(s) { return { score: clamp(s?.score ?? 0, 0, 100), details: s?.details ?? '—' }; }
+    function normalizeAnalyzeResult(result) {
+      const src = (result && result.data) ? result.data : result || {};
+      return {
+        rankingTier: src.rankingTier ?? 'Unranked',
+        overallScore: clamp(src.overallScore ?? 0, 0, 100),
+        skillMatch: section(src.skillMatch),
+        experienceMatch: section(src.experienceMatch),
+        certificationValue: section(src.certificationValue),
+        pros: Array.isArray(src.pros) ? src.pros : [],
+        cons: Array.isArray(src.cons) ? src.cons : [],
+        certificateChecks: Array.isArray(src.certificateChecks) ? src.certificateChecks : []
+      };
+    }
+    function showToast(msg, type='error') {
+      const color = type === 'success'
+        ? 'bg-green-900 border-green-700 text-green-200'
+        : 'bg-red-900 border-red-700 text-red-200';
+      analysisStatus.innerHTML = `<div class="p-3 mb-3 rounded-lg border ${color}">${escapeHtml(msg)}</div>`;
+    }
+    function showStatus(msg, type) {
+      const color = type === 'success'
+        ? 'bg-green-900 border-green-700 text-green-200'
+        : 'bg-red-900 border-red-700 text-red-200';
+      statusMessage.innerHTML = `<div class="p-3 mt-4 rounded-lg border ${color}">${escapeHtml(msg)}</div>`;
+    }
+    function fmtWhen(iso, durationMin){
+      try {
+        const d = new Date(iso);
+        const optsDate = { year:'numeric', month:'short', day:'numeric' };
+        const optsTime = { hour:'2-digit', minute:'2-digit' };
+        return `${d.toLocaleDateString([], optsDate)} ${d.toLocaleTimeString([], optsTime)} (${durationMin||30} min)`;
+      } catch { return iso; }
+    }
+    function escapeHtml(s='') {
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+
+    // ---------------- [NEW] Routing Logic ----------------
+    async function route() {
+      const hash = location.hash || '#/user';
+      
+      // Hide all modals and page content by default
+      hideAdminOverlay();
+      hideCandidateOverlay();
+      adminPortal.style.display = 'none';
+      userPortal.style.display = 'none';
+      
+      if (hash === '#/admin') {
+        navUser.classList.remove('active');
+        navAdmin.classList.add('active');
+        
+        const ok = await ensureAuthedForAdmin();
+        if (ok) { 
+          // User is admin, show the admin portal
+          showAdminAndLoad();
+        }
+        // else: ensureAuthedForAdmin() already showed the admin login modal
+      
+      } else { // This is #/user or default
+        navAdmin.classList.remove('active');
+        navUser.classList.add('active');
+        userPortal.style.display = 'block';
+        
+        const authResult = await candidateAuth.whoAmI();
+        
+        if (authResult.authenticated) {
+          // LOGGED IN: Show the form, hide the login
+          userFormContainer.style.display = 'block';
+          hideCandidateOverlay();
+          await showUserPortalAndLoad();
+        } else {
+          // NOT LOGGED IN: Hide the form, show the login
+          userFormContainer.style.display = 'none';
+          showCandidateOverlay();
+        }
+      }
+    }
+    window.addEventListener('hashchange', route);
+
+    // ---------------- Candidate form ----------------
+    userForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      statusMessage.innerHTML = '';
+      const formData = new FormData(userForm);
+
+      if (!currentCandidate?.resumeFile?.filename && !formData.get('resume').name) {
+          return showStatus('Please upload a resume.', 'error');
+      }
+
+      toggleSubmit(true);
+      try {
+        const res = await fetch(`${API_URL}/submit`, { method: 'POST', body: formData, credentials: 'include' });
+        
+        if (res.status === 401) {
+          showStatus('Your session expired. Please log in again to submit.', 'error');
+          showCandidateOverlay();
+          throw new Error('Not authenticated');
+        }
+
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        const data = ct.includes('application/json') ? await res.json() : { message: `Expected JSON, got ${ct}` };
+        if (!res.ok) throw new Error(data.message || 'Failed to submit');
+        
+        showStatus('Profile updated successfully!', 'success');
+        
+        currentCandidate = data.candidate;
+        await showUserPortalAndLoad();
+        
+        resumeFileInput.value = '';
+        certificateFilesInput.value = '';
+
+        if (location.hash === '#/admin') loadCandidates();
+      } catch (err) {
+        if (err.message !== 'Not authenticated') {
+          showStatus(err.message, 'error');
+        }
+      } finally {
+        toggleSubmit(false);
+      }
+    });
+
+    function toggleSubmit(loading) {
+      submitBtn.disabled = loading;
+      submitBtnText.textContent = loading ? 'Submitting...' : 'Update Profile';
+      submitLoader.classList.toggle('hidden', !loading);
+    }
+
+    certificateFilesInput.addEventListener('change', e => {
+      const files = Array.from(e.target.files || []);
+      
+      if (!files.length) {
+          if (currentCandidate?.certificates?.length) {
+            certificateFileList.innerHTML = `<p class="text-sm text-gray-400">Current certificates: (${currentCandidate.certificates.length})</p><ul class="list-disc ml-6 text-gray-400 text-sm">${currentCandidate.certificates.map(f => `<li>${escapeHtml(f.name)}</li>`).join('')}</ul>`;
+          } else {
+            certificateFileList.innerHTML = '';
+          }
+          return;
+      }
+      
+      const existing = (currentCandidate?.certificates || []).map(f => `<li>${escapeHtml(f.name)} (will be replaced)</li>`).join('');
+      const fresh = files.map(f => `<li>${escapeHtml(f.name)} (new)</li>`).join('');
+
+      certificateFileList.innerHTML = `<p class="text-sm">File changes:</p><ul class="list-disc ml-6 text-sm text-red-400">${existing}</ul><ul class="list-disc ml-6 text-sm text-green-400">${fresh}</ul>`;
+    });
+
+    async function refreshCandidateMeetingCard() {
+      try {
+        if (!candidateAuth.authed) {
+            candidateMeetingWrap.classList.add('hidden'); return;
+        }
+        const { data } = await fetchJSON(`${API_URL}/candidate/my-meeting`, { credentials: 'include' });
+        if (!data?.meeting) { candidateMeetingWrap.classList.add('hidden'); return; }
+        candidateMeetingTitle.textContent = data.meeting.title || 'Interview';
+        candidateMeetingWhen.textContent = fmtWhen(data.meeting.startISO, data.meeting.durationMin);
+        candidateJoin.href = data.meeting.videoUrl;
+        if (data.meeting.icsUrl) { candidateICS.href = data.meeting.icsUrl; candidateICS.classList.remove('hidden'); }
+        else { candidateICS.classList.add('hidden'); }
+        candidateMeetingWrap.classList.remove('hidden');
+        lucide.createIcons();
+      } catch {
+        candidateMeetingWrap.classList.add('hidden');
+      }
+    }
+
+    // ---------------- [NEW] Central function to re-render lists ---
+    function rerenderLists() {
+      const active = cachedCandidates.filter(c => !c.quarantined);
+      const quarantined = cachedCandidates.filter(c => c.quarantined);
+      
+      if (currentRankMap.size > 0) {
+          active.sort((a,b) => {
+            const sa = currentRankMap.get(a.id)?.score; 
+            const sb = currentRankMap.get(b.id)?.score;
+            if (sa == null && sb == null) return 0; 
+            if (sa == null) return 1; 
+            if (sb == null) return -1; 
+            return sb - sa;
+          });
+      }
+      
+      renderCandidateLists(active, quarantined, currentRankMap);
+    }
+    
+    // ---------------- Admin logic ----------------
+    async function loadCandidates() {
+      try {
+        activeList.innerHTML = '<div class="text-gray-400">Loading...</div>';
+        quarantineList.innerHTML = '';
+        const { data } = await fetchJSON(`${API_URL}/candidates`, { credentials: 'include' });
+        cachedCandidates = data.candidates || [];
+        
+        rerenderLists(); 
+
+        activeCount.textContent = `(${cachedCandidates.filter(c => !c.quarantined).length})`;
+        quarantineCount.textContent = `(${cachedCandidates.filter(c => c.quarantined).length})`;
+
+      } catch (e) {
+        activeList.innerHTML = `<p class="text-red-400">Failed to load candidates: ${e.message}</p>`;
+        quarantineList.innerHTML = '';
+      }
+    }
+
+    function scoreDot(score) {
+      if (score >= 75) return '<span class="dot dot-green"></span>';
+      if (score >= 55) return '<span class="dot dot-yellow"></span>';
+      return '<span class="dot dot-red"></span>';
+    }
+
+    function candidateItemTemplate(c, rank, quarantined=false) {
+      const score = rank?.score;
+      const tier = rank?.rankingTier;
+      const badge = score != null
+        ? `<span class="text-xs font-semibold px-2 py-1 rounded bg-gray-700 flex items-center">${scoreDot(score)}${score}${tier ? ` · ${tier}` : ''}</span>`
+        : '';
+
+      const qText = c.quarantineReason ? ('Q: ' + escapeHtml(c.quarantineReason)) : 'Quarantined';
+      const quarantineInfo = quarantined
+        ? `<span class="text-[10px] px-2 py-0.5 rounded bg-purple-900 text-purple-200 border border-purple-500 ml-2">${qText}</span>`
+        : '';
+
+      const actionIcons = quarantined
+        ? `
+          <button title="Unquarantine" data-action="unq" data-id="${c.id}" class="tt text-green-400 hover:text-green-300" data-tip="(unquarantine)" aria-label="Unquarantine">
+            <i data-lucide="shield-off" class="w-5 h-5"></i>
+          </button>
+          <button title="Delete" data-action="del" data-id="${c.id}" class="tt text-red-400 hover:text-red-300" data-tip="(delete)" aria-label="Delete">
+            <i data-lucide="trash-2" class="w-5 h-5"></i>
+          </button>`
+        : `
+          <button title="Schedule" data-action="sch" data-id="${c.id}" class="tt text-red-300 hover:text-red-200" data-tip="(schedule)" aria-label="Schedule">
+            <i data-lucide="calendar-plus" class="w-5 h-5"></i>
+          </button>
+          <button title="Quarantine" data-action="q" data-id="${c.id}" class="tt text-purple-300 hover:text-purple-200" data-tip="(quarantine)" aria-label="Quarantine">
+            <i data-lucide="shield-x" class="w-5 h-5"></i>
+          </button>
+          <button title="Delete" data-action="del" data-id="${c.id}" class="tt text-red-400 hover:text-red-300" data-tip="(delete)" aria-label="Delete">
+            <i data-lucide="trash-2" class="w-5 h-5"></i>
+          </button>`;
+
+      return `
+        <div class="candidate-row p-3 rounded-lg bg-gray-700 hover:bg-gray-600 flex items-center justify-between gap-3">
+          <button data-id="${c.id}" class="candidate-btn text-left flex-1 text-gray-200 truncate">
+            ${escapeHtml(c.name || 'Unnamed')} (${escapeHtml(c.email || 'No email')})
+            ${quarantineInfo}
+          </button>
+          <div class="candidate-actions flex items-center gap-2 sm:gap-3">
+            ${badge}
+            <div class="flex items-center gap-2 sm:gap-2.5">
+              ${actionIcons}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderCandidateLists(active, quarantined, rankingsMap) {
+      const filteredActive = active.filter(c => {
+        if (currentScoreFilter === 0) return true;
+        const rank = rankingsMap.get(c.id);
+        if (!rank || rank.score == null) return false;
+        return rank.score >= currentScoreFilter;
+      });
+
+      const filteredQuarantined = quarantined.filter(c => {
+        if (currentScoreFilter === 0) return true;
+        const rank = rankingsMap.get(c.id);
+        if (!rank || rank.score == null) return false;
+        return rank.score >= currentScoreFilter;
+      });
+
+      activeList.innerHTML = filteredActive.length
+        ? filteredActive.map(c => candidateItemTemplate(c, rankingsMap?.get(c.id), false)).join('')
+        : '<p class="text-gray-400">No active candidates match filter.</p>';
+
+      quarantineList.innerHTML = filteredQuarantined.length
+        ? filteredQuarantined.map(c => candidateItemTemplate(c, rankingsMap?.get(c.id), true)).join('')
+        : '<p class="text-gray-500">No quarantined candidates match filter.</p>';
+      
+      activeCount.textContent = `(${filteredActive.length})`;
+      quarantineCount.textContent = `(${filteredQuarantined.length})`;
+
+
+      document.querySelectorAll('.candidate-btn').forEach(btn => {
+        btn.addEventListener('click', () => selectCandidate(btn.dataset.id));
+      });
+
+      document.querySelectorAll('[data-action]').forEach(btn => {
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        if (action === 'q') btn.addEventListener('click', (e) => { e.stopPropagation(); openQuarantineModal(id); });
+        if (action === 'unq') btn.addEventListener('click', (e) => { e.stopPropagation(); unquarantineCandidate(id); });
+        if (action === 'del') btn.addEventListener('click', (e) => { e.stopPropagation(); deleteCandidate(id); });
+        
+        if (action === 'sch') btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectCandidate(id);
+          openScheduleModal();
+        });
+      });
+
+      lucide.createIcons();
+    }
+
+    async function selectCandidate(id) {
+      selectedCandidate = cachedCandidates.find(c => c.id === id);
+      analysisStatus.innerHTML = '';
+      analysisResults.classList.add('hidden');
+      analysisPlaceholder.style.display = 'none';
+      await refreshRecruiterMeetingCard();
+      runAnalysisForSelected();
+    }
+
+    async function runAnalysisForSelected() {
+      if (!selectedCandidate) return;
+      const jd = jobDescription.value.trim();
+      if (!jd) {
+        analysisPlaceholder.style.display = 'block';
+        analysisPlaceholder.innerHTML = `Selected: <strong>${escapeHtml(selectedCandidate.name || 'Candidate')}</strong><br><span class="text-sm text-red-300">Paste a job description to generate analysis.</span>`;
+        return;
+      }
+      if (selectedCandidate.quarantined) {
+        analysisPlaceholder.style.display = 'block';
+        analysisPlaceholder.innerHTML = `
+          <div class="p-4 rounded-lg bg-purple-900/40 border border-purple-700">
+            <div class="font-semibold text-purple-200">Candidate is quarantined.</div>
+            ${selectedCandidate.quarantineReason ? `<div class="text-purple-300 text-sm mt-1">Reason: ${escapeHtml(selectedCandidate.quarantineReason)}</div>` : ''}
+          </div>`;
+        return;
+      }
+      
+      if (!selectedCandidate.resumeFile?.filename) {
+          analysisPlaceholder.style.display = 'block';
+          analysisPlaceholder.innerHTML = `
+          <div class="p-4 rounded-lg bg-yellow-900/40 border border-yellow-700">
+            <div class="font-semibold text-yellow-200">Cannot Analyze</div>
+            <div class="text-yellow-300 text-sm mt-1">This candidate has not uploaded a resume.</div>
+          </div>`;
+        return;
+      }
+
+      analysisLoading.classList.remove('hidden');
+      try {
+        const { data } = await fetchJSON(`${API_URL}/analyze`, {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidateId: selectedCandidate.id, jobDescription: jd })
+        });
+        const normalized = normalizeAnalyzeResult(data);
+        renderResults(normalized);
+      } catch (err) {
+        showToast(err.message, 'error');
+        analysisResults.classList.add('hidden');
+      } finally {
+        analysisLoading.classList.add('hidden');
+      }
+    }
+
+    function autoSelectNextTopCandidate() {
+      const topCandidateRow = activeList.querySelector('.candidate-btn');
+      if (topCandidateRow) {
+        const topId = topCandidateRow.dataset.id;
+        selectCandidate(topId);
+      } else {
+        selectedCandidate = null;
+        analysisPlaceholder.style.display = 'block';
+        analysisResults.classList.add('hidden');
+        analysisPlaceholder.textContent = 'No active candidates match the current filter.';
+        recruiterMeetingCard.classList.add('hidden');
+      }
+    }
+
+    analyzeAllBtn.addEventListener('click', async () => {
+      if (rankAllInFlight) return;
+      const jd = jobDescription.value.trim();
+      if (!jd) return showToast('Enter a job description first.');
+      rankAllInFlight = true;
+      rankAllOverlay.style.display = 'flex';
+      rankAllStatus.textContent = 'Ranking all candidates...';
+      rankAllProgress.style.width = '100%';
+      lucide.createIcons();
+      try {
+        const { data } = await fetchJSON(`${API_URL}/analyze-all`, {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobDescription: jd })
+        });
+        
+        currentRankMap.clear(); 
+        (data.rankings || []).forEach(r => currentRankMap.set(r.id, r)); 
+        
+        rerenderLists(); 
+        autoSelectNextTopCandidate();
+        showToast('Ranking complete.', 'success');
+        
+        setTimeout(() => {
+          rankAllOverlay.style.display = 'none';
+        }, 800);
+      } catch (e) {
+        showToast(e.message || 'An unexpected error occurred during ranking.');
+        rankAllOverlay.style.display = 'none';
+      } finally {
+        rankAllInFlight = false;
+      }
+    });
+
+    function renderResults(r) {
+      analysisResults.classList.remove('hidden');
+      analysisResults.innerHTML = `
+        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 md:p-6 mb-6">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <h3 class="text-2xl sm:text-3xl font-bold mb-1 truncate">${escapeHtml(selectedCandidate?.name ?? 'Candidate')}</h3>
+              <p class="text-gray-400">Tier: <span class="font-bold">${escapeHtml(r.rankingTier)}</span></p>
+            </div>
+          </div>
+          <p class="text-lg sm:text-xl font-bold mt-3">Overall Score: ${r.overallScore}/100</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <div class="score-card"><h4 class="mb-2">Skill Match</h4><div class="score-circle" style="--color:#3b82f6;--score:${r.skillMatch.score};">${r.skillMatch.score}</div><p class="mt-2 text-center text-gray-300">${escapeHtml(r.skillMatch.details)}</p></div>
+          <div class="score-card"><h4 class="mb-2">Experience</h4><div class="score-circle" style="--color:#10b981;--score:${r.experienceMatch.score};">${r.experienceMatch.score}</div><p class="mt-2 text-center text-gray-300">${escapeHtml(r.experienceMatch.details)}</p></div>
+          <div class="score-card"><h4 class="mb-2">Certifications</h4><div class="score-circle" style="--color:#f59e0b;--score:${r.certificationValue.score};">${r.certificationValue.score}</div><p class="mt-2 text-center text-gray-300">${escapeHtml(r.certificationValue.details)}</p></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <div><h4 class="text-xl font-semibold mb-2 text-green-400">Pros</h4><ul class="list-disc ml-6">${(r.pros || []).map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>
+          <div><h4 class="text-xl font-semibold mb-2 text-red-400">Cons</h4><ul class="list-disc ml-6">${(r.cons || []).map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>
+        </div>
+      `;
+      if (r.certificateChecks && r.certificateChecks.length) {
+        const certs = selectedCandidate?.certificates || [];
+        analysisResults.innerHTML += `
+          <div class="mt-6 bg-gray-800 rounded-xl p-6">
+            <h4 class="text-xl font-semibold mb-4">Certificate Verification</h4>
+            <div class="space-y-4">
+              ${r.certificateChecks.map(c => {
+                const certFile = certs.find(f => f.name === c.fileName);
+                const certUrl = certFile ? certFile.url : null;
+                const isClickable = !!certUrl;
+                return `
+                  <div class="p-4 rounded-lg bg-gray-700">
+                    ${isClickable ? `
+                      <a href="${certUrl}" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-400 hover:underline">
+                        ${escapeHtml(c.fileName)} <i data-lucide="external-link" class="inline w-4 h-4"></i>
+                      </a>` : `<div class="font-semibold">${escapeHtml(c.fileName)}</div>`}
+                    <div class="text-sm text-gray-400 mt-2">
+                      Platform: <span class="font-medium text-gray-200">${escapeHtml(c.issuer || 'Unknown')}</span>
+                    </div>
+                    <div class="text-sm text-gray-300 mt-1">
+                      Credential IDs: ${(c.credentialIds || []).map(escapeHtml).join(', ') || '—'}
+                    </div>
+                    <div class="mt-2 text-sm">
+                      ${(c.verifyUrls || []).length ? `
+                        <div>Verify URLs:</div>
+                        <ul class="list-disc ml-6">
+                          ${c.verifyUrls.map(u => `<li><a class="text-blue-400 underline break-all" href="${u}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a></li>`).join('')}
+                        </ul>
+                      ` : `<div class="text-gray-300">No verify URLs found.</div>`}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+      lucide.createIcons();
+    }
+
+    // -------- Modals & Admin actions --------
+    function openQuarantineModal(id) {
+      quarantineTargetId = id;
+      modalReason.value = '';
+      modalOverlay.style.display = 'flex';
+      modalOverlay.setAttribute('aria-hidden', 'false');
+      setTimeout(() => modalReason.focus(), 0);
+    }
+    function closeQuarantineModal() {
+      modalOverlay.style.display = 'none';
+      modalOverlay.setAttribute('aria-hidden', 'true');
+      quarantineTargetId = null;
+    }
+    modalClose.addEventListener('click', closeQuarantineModal);
+    modalCancel.addEventListener('click', closeQuarantineModal);
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeQuarantineModal(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalOverlay.getAttribute('aria-hidden') === 'false') closeQuarantineModal(); });
+    modalConfirm.addEventListener('click', async () => {
+      if (!quarantineTargetId) return closeQuarantineModal();
+      const reason = modalReason.value.trim();
+      const wasSelected = (selectedCandidate?.id === quarantineTargetId);
+      try {
+        await fetchJSON(`${API_URL}/candidates/${quarantineTargetId}/quarantine`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason || undefined })
+        });
+        showToast('Candidate quarantined.', 'success');
+        closeQuarantineModal();
+        await loadCandidates();
+        if (wasSelected) {
+          autoSelectNextTopCandidate();
+        }
+      } catch (e) {
+        showToast(e.message);
+      }
+    });
+    async function unquarantineCandidate(id) {
+      try {
+        await fetchJSON(`${API_URL}/candidates/${id}/unquarantine`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        showToast('Candidate restored to active.', 'success');
+        await loadCandidates();
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+    async function deleteCandidate(id) {
+      const cand = cachedCandidates.find(c => c.id === id);
+      const name = cand?.name || 'this candidate';
+      if (!confirm(`Delete ${name}? This will remove their uploads, meetings, and cached analyses. This cannot be undone.`)) return;
+      const wasSelected = (selectedCandidate?.id === id);
+      try {
+        await fetchJSON(`${API_URL}/candidates/${id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        showToast('Candidate deleted.', 'success');
+        await loadCandidates();
+        if (wasSelected) {
+          autoSelectNextTopCandidate();
+        }
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+    function openResetModal() {
+      resetPassword.value = '';
+      resetConfirm.value = '';
+      resetOverlay.style.display = 'flex';
+      resetOverlay.setAttribute('aria-hidden', 'false');
+      setTimeout(() => resetPassword.focus(), 0);
+    }
+    function closeResetModal() {
+      resetOverlay.style.display = 'none';
+      resetOverlay.setAttribute('aria-hidden', 'true');
+    }
+    resetBtn.addEventListener('click', openResetModal);
+    resetClose.addEventListener('click', closeResetModal);
+    resetCancel.addEventListener('click', closeResetModal);
+    resetOverlay.addEventListener('click', (e) => { if (e.target === resetOverlay) closeResetModal(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && resetOverlay.getAttribute('aria-hidden') === 'false') closeResetModal(); });
+    resetConfirmBtn.addEventListener('click', async () => {
+      const pw = resetPassword.value;
+      const conf = resetConfirm.value.trim().toUpperCase();
+      if (!pw) return showToast('Enter admin password.');
+      if (conf !== 'RESET') return showToast('Type RESET to confirm.');
+      resetConfirmBtn.disabled = true;
+      resetConfirmBtn.textContent = 'Resetting...';
+      try {
+        const { data } = await fetchJSON(`${API_URL}/admin/reset`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        if (!data?.success) throw new Error(data?.message || 'Reset failed.');
+        showToast('Portal reset complete.', 'success');
+        closeResetModal();
+        cachedCandidates = [];
+        currentRankMap.clear(); 
+        selectedCandidate = null;
+        analysisResults.classList.add('hidden');
+        analysisPlaceholder.style.display = 'block';
+        analysisPlaceholder.textContent = 'Portal was reset. No candidates available.';
+        activeList.innerHTML = '<p class="text-gray-400">No active candidates.</p>';
+        quarantineList.innerHTML = '<p class="text-gray-500">No candidates in quarantine.</p>';
+        activeCount.textContent = '(0)';
+        quarantineCount.textContent = '(0)';
+        recruiterMeetingCard.classList.add('hidden');
+      } catch (e) {
+        showToast(e.message || 'Reset failed.');
+      } finally {
+        resetConfirmBtn.disabled = false;
+        resetConfirmBtn.textContent = 'Delete Everything';
+      }
+    });
+    function openScheduleModal() {
+      if (!selectedCandidate) return;
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + (60 - now.getMinutes()));
+      schTitle.value = 'Interview';
+      schDate.valueAsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      schTime.value = now.toTimeString().slice(0,5);
+      schDuration.value = 30;
+      schDesc.value = '';
+      schOrgName.value = '';
+      schOrgEmail.value = '';
+      schCandEmail.value = selectedCandidate.email || '';
+      schSendEmail.checked = false;
+      scheduleOverlay.style.display = 'flex';
+      scheduleOverlay.setAttribute('aria-hidden','false');
+    }
+    function closeScheduleModal() {
+      scheduleOverlay.style.display = 'none';
+      scheduleOverlay.setAttribute('aria-hidden','true');
+    }
+    scheduleClose.addEventListener('click', closeScheduleModal);
+    scheduleCancel.addEventListener('click', closeScheduleModal);
+    scheduleOverlay.addEventListener('click', (e)=>{ if (e.target === scheduleOverlay) closeScheduleModal(); });
+    window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape' && scheduleOverlay.getAttribute('aria-hidden') === 'false') closeScheduleModal(); });
+    scheduleConfirm.addEventListener('click', async () => {
+      if (!selectedCandidate) return;
+      try {
+        const date = schDate.value;
+        const time = schTime.value;
+        if (!date || !time) { showToast('Pick a date and time'); return; }
+        const startISO = new Date(`${date}T${time}:00`).toISOString();
+        const payload = {
+          candidateId: selectedCandidate.id,
+          startISO,
+          durationMin: Number(schDuration.value || 30),
+          title: schTitle.value || 'Interview',
+          description: schDesc.value || '',
+          organizerName: schOrgName.value || undefined,
+          organizerEmail: schOrgEmail.value || undefined,
+          candidateEmail: schCandEmail.value || undefined,
+          sendEmail: !!schSendEmail.checked
+        };
+        scheduleConfirm.disabled = true;
+        scheduleConfirm.textContent = 'Creating...';
+        const { data } = await fetchJSON(`${API_URL}/meetings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        showToast('Meeting scheduled.', 'success');
+        closeScheduleModal();
+        await refreshRecruiterMeetingCard(true);
+      } catch (e) {
+        showToast(e.message);
+      } finally {
+        scheduleConfirm.disabled = false;
+        scheduleConfirm.textContent = 'Create Meeting';
+      }
+    });
+    async function refreshRecruiterMeetingCard() {
+      if (!selectedCandidate) { recruiterMeetingCard.classList.add('hidden'); return; }
+      try {
+        const { data } = await fetchJSON(`${API_URL}/meetings?candidateId=${encodeURIComponent(selectedCandidate.id)}`, { credentials: 'include' });
+        const meetings = (data.meetings || []).sort((a,b)=> new Date(b.startISO) - new Date(a.startISO));
+        const m = meetings[0];
+        if (!m) {
+          recruiterMeetingCard.classList.add('hidden');
+          return;
+        }
+        recruiterMeetingTitle.textContent = m.title || 'Interview';
+        recruiterMeetingWhen.textContent = fmtWhen(m.startISO, m.durationMin);
+        recruiterJoin.href = m.videoUrl;
+        if (m.icsUrl) { recruiterICS.href = m.icsUrl; recruiterICS.classList.remove('hidden'); }
+        else { recruiterICS.classList.add('hidden'); }
+        recruiterMeetingCard.classList.remove('hidden');
+        lucide.createIcons();
+      } catch (e) {
+        recruiterMeetingCard.classList.add('hidden');
+      }
+    }
+    btnCancelMeeting.addEventListener('click', async () => {
+      if (!selectedCandidate) return;
+      try {
+        const { data } = await fetchJSON(`${API_URL}/meetings?candidateId=${encodeURIComponent(selectedCandidate.id)}`, { credentials: 'include' });
+        const meetings = (data.meetings || []).sort((a,b)=> new Date(b.startISO) - new Date(a.startISO));
+        const m = meetings[0];
+        if (!m) return;
+        if (!confirm('Cancel this meeting? The invite and .ics will be invalidated.')) return;
+        await fetchJSON(`${API_URL}/meetings/${encodeURIComponent(m.id)}/cancel`, { method:'POST', credentials:'include' });
+        showToast('Meeting cancelled.', 'success');
+        recruiterMeetingCard.classList.add('hidden');
+      } catch (e) {
+        showToast(e.message);
+      }
+    });
+
+    // ---------------- Logout ----------------
+    logoutBtn.addEventListener('click', async () => {
+      if (adminAuth.authed) {
+        await adminAuth.logout();
+      } else if (candidateAuth.authed) {
+        await candidateAuth.logout();
+      }
+      location.hash = '#/user';
+      route();
+    });
+
+    // ---------------- [NEW] Filter Listener ----------------
+    scoreFilter.addEventListener('change', () => {
+        currentScoreFilter = Number(scoreFilter.value);
+        rerenderLists(); // Just re-render the lists with the new filter
+    });
+
+    // ---------------- Init ----------------
+    (async () => {
+      try {
+        lucide.createIcons();
+        if (!location.hash) location.hash = '#/user';
+        await adminAuth.whoAmI();
+        await candidateAuth.whoAmI(); 
+        route();
+      } catch (err) {
+        console.error("Initialization failed:", err.message);
+        document.body.innerHTML = `<div style="padding: 20px; text-align: center; color: red; font-family: sans-serif;">
+          <h2>Application Boot Error</h2>
+          <p>Failed to initialize JavaScript. A required HTML element may be missing.</p>
+          <p><strong>Error:</strong> ${err.message}</p>
+        </div>`;
+      }
+    })();
+  </script>
+</body>
+</html>

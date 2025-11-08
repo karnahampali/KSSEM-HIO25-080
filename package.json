@@ -1,0 +1,36 @@
+{
+  "name": "intellihire-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IntelliHire server with robust PDF parsing and OCR",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "clean": "node -e \"try{require('fs').rmSync('node_modules',{recursive:true,force:true});}catch{} try{require('fs').rmSync('package-lock.json',{force:true});}catch{}\" && npm install"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.81",
+    "bcrypt": "^5.1.1",
+    "canvas": "npm:@napi-rs/canvas",
+    "cors": "^2.8.5",
+    "docx-parser": "^0.2.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-session": "^1.18.0",
+    "fs-extra": "^11.2.0",
+    "js-sha256": "^0.11.1",
+    "mammoth": "^1.6.0",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.10",
+    "pdf-parse": "^1.1.4",
+    "pdfjs-dist": "^4.10.38",
+    "sharp": "^0.33.4",
+    "tesseract.js": "^5.0.5",
+    "uuid": "^9.0.1"
+  }
+}
