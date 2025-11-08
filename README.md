@@ -18,6 +18,13 @@ whose analysis can be done by entering the work description and a single click. 
 other features such as *Quarantining* a user, *Scheduling a meeting* with the user, and sorting the candidates based on the scores
 required for the recruiter (Eg - 90+ only). They also share the power to remove the user from the portal.
 
+# How to run thhe project?
+1) clone the project in vscode using git clone https://github.com/karnahampali/KSSEM-HIO25-080
+2) run the command npm install
+3) get a gemini api key and add it to .env file, also do the same for enabling mails.
+4) use the command node server.js to start the server.
+5) the project will be hosted on the local port given.
+
 # After MVP?
 We plan to continue making this project with better ideas which simply couldn't be implemented in 24 hours such as
 1) Certificate verification through their ID's.
